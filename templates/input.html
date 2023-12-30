@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Input Page</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            background-color: black;
+            color: white;
+            text-align: center;
+            padding-top: 50vh; /* Centers content vertically */
+        }
+        #talkButton {
+            font-size: 30px;
+            padding: 15px 30px;
+            background-color: white;
+            color: black;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+    </style>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+</head>
+<body>
+    <button id="talkButton" onclick="toggleTalk()">TALK</button>
+    
+    <script>
+        var socket = io({transports: ['websocket']});
+        var pcConfig = {
+            iceServers: [{urls: 'stun:stun.l.google.com:19302'}]
+        };
+        var pc = new RTCPeerConnection(pcConfig);
+        var localStream = null;
+        var isTalking = false;
+
+        pc.onicecandidate = event => {
+            if (event.candidate) {
+                socket.emit('ice_candidate', event.candidate);
+            }
+        };
+
+        function toggleTalk() {
+            if (!isTalking) {
+                navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+                    .then(stream => {
+                        localStream = stream;
+                        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+                        pc.createOffer()
+                            .then(offer => {
+                                pc.setLocalDescription(offer);
+                                socket.emit('offer', offer);
+                            })
+                            .catch(error => console.error('Error creating offer:', error));
+                        document.getElementById('talkButton').style.color = 'red';
+                        isTalking = true;
+                    })
+                    .catch(error => console.error('Error getting user media:', error));
+            } else {
+                stopTalking();
+            }
+        }
+
+        function stopTalking() {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+            if (pc) {
+                pc.close();
+                pc = new RTCPeerConnection(pcConfig); // Reinitialize peer connection
+            }
+            document.getElementById('talkButton').style.color = ''; // Revert button color
+            isTalking = false;
+        }
+
+        socket.on('answer', answer => {
+            pc.setRemoteDescription(new RTCSessionDescription(answer));
+        });
+    </script>
+</body>
+</html>
