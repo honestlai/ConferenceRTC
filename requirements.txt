@@ -1,7 +1,5 @@
 Flask
-Flask-SocketIO
 flask-cors
-eventlet
-python-socketio[client]
-aiortc  
 flask-sockets
+gevent
+gevent-websocket

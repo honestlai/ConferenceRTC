@@ -3,50 +3,43 @@
 <head>
     <title>Output Page</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        body {
-            text-align: center;
-            padding-top: 50vh; /* Centers content vertically */
-        }
-        #status {
-            font-size: 24px;
-            margin-top: 20px;
-            color: white;
-            background-color: black;
-        }
-    </style>
+    <link rel="stylesheet" href="/static/css/unified.css">
 </head>
 <body>
-    <span id="status">Waiting for WebRTC Session...</span>
+    <div id="statusBox" class="connect" onclick="toggleWebRTC()">Connect</div>
     <audio id="audioOutput" autoplay></audio>
+    <div id="debugBox" class="debugBox"></div>
+    <div id="handshakeBox" class="debugBox">Handshake Information:<br/></div>
 
     <script src="/static/js/webrtc.js"></script>
+    <script src="/static/js/debugging.js"></script>
     <script>
-        const sessionId = "unique-session-id"; // This should match the session ID used in input.html
+        let isWebRTCConnected = false;
+        const statusBox = document.getElementById('statusBox');
 
-        setupWebRTC(sessionId);
-
-        // Override the default ontrack handler to play received media
-        peerConnection.ontrack = event => {
-            document.getElementById('audioOutput').srcObject = event.streams[0];
-            document.getElementById('status').textContent = 'Receiving Audio...';
-        };
-
-        // Listen for offers
-        socket.onmessage = event => {
-            let data = JSON.parse(event.data);
-
-            if (data.offer) {
-                peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer))
-                    .then(() => peerConnection.createAnswer())
-                    .then(answer => peerConnection.setLocalDescription(answer))
-                    .then(() => {
-                        socket.send(JSON.stringify({'answer': peerConnection.localDescription, 'session_id': sessionId}));
-                    });
-            } else if (data.iceCandidate) {
-                peerConnection.addIceCandidate(new RTCIceCandidate(data.iceCandidate));
+        function toggleWebRTC() {
+            if (isWebRTCConnected) {
+                updateDebugBox("Disconnecting WebRTC...");
+                stopWebRTCConnection();
+                statusBox.className = 'connect';
+                statusBox.textContent = 'Connect';
+                isWebRTCConnected = false;
+                if (socket) {
+                    socket.close();  // Close the WebSocket connection
+                }
+            } else {
+                updateDebugBox("Attempting to connect WebRTC...");
+                initializeWebSocket(); // Changed to only initialize WebSocket
+                getSessionIdAndSetupWebRTC().then(sessionId => {
+                    startWebRTCConnection(sessionId);
+                    statusBox.className = 'waiting';
+                    statusBox.textContent = 'Waiting for WebRTC Session...';
+                }).catch(error => {
+                    updateDebugBox("Failed to start WebRTC: " + error);
+                });
             }
-        };
+        }
+
     </script>
 </body>
 </html>

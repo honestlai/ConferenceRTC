@@ -3,68 +3,56 @@
 <head>
     <title>Input Page</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        body {
-            background-color: black;
-            color: white;
-            text-align: center;
-            padding-top: 50vh; /* Centers content vertically */
-        }
-        #startButton {
-            font-size: 30px;
-            padding: 15px 30px;
-            background-color: white;
-            color: black;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-        }
-    </style>
+    <link rel="stylesheet" href="/static/css/unified.css">
 </head>
 <body>
     <button id="startButton" onclick="handleSession()">Talk</button>
-    
+    <div id="debugBox" class="debugBox">Debug Information:<br/></div>
+    <div id="handshakeBox" class="debugBox">Handshake Information:<br/></div>
+
     <script src="/static/js/webrtc.js"></script>
+    <script src="/static/js/debugging.js"></script>
     <script>
-        // Function to start the WebRTC session
-        let localStream; // Declare this at the top
-    
         let isSessionActive = false;
-        
+        let localStream;
+
         function handleSession() {
             if (!isSessionActive) {
                 startSession();
-                document.getElementById('startButton').textContent = 'Stop';
-                document.getElementById('startButton').style.backgroundColor = 'red';
                 isSessionActive = true;
+                document.getElementById('startButton').textContent = 'Stop';
+                document.getElementById('startButton').classList.add('red');
             } else {
                 stopSession();
-                document.getElementById('startButton').textContent = 'Talk';
-                document.getElementById('startButton').style.backgroundColor = 'white';
                 isSessionActive = false;
+                document.getElementById('startButton').textContent = 'Talk';
+                document.getElementById('startButton').classList.remove('red');
             }
         }
-        
+
         function startSession() {
-            const sessionId = "unique-session-id"; // Generate or retrieve a unique session ID as needed
-            setupWebRTC(sessionId);
-    
-            // Request access to the media devices
-            navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then(stream => {
-                localStream = stream; // Assign stream to localStream
-                addMediaStream(stream); // Add stream to the connection
-    
-                createAndSendOffer(sessionId); // Create and send the WebRTC offer
-            }).catch(error => {
-                console.error('Error accessing media devices:', error);
+            initializeWebSocket(); // Changed to only initialize WebSocket
+            getSessionIdAndSetupWebRTC().then(sessionId => {
+                navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then(stream => {
+                    localStream = stream;
+                    addMediaStream(stream);
+                    createAndSendOffer(sessionId);
+                }).catch(error => {
+                    console.error('Error accessing media devices:', error);
+                    updateDebugBox('Error accessing media devices: ' + error);
+                });
             });
         }
-        
+
         function stopSession() {
-            localStream.getTracks().forEach(track => track.stop());
-            // Optionally, send a message to the output page that the stream has ended
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            stopWebRTCConnection();
+            if (socket) {
+                socket.close();  // Close the WebSocket connection
+            }
         }
     </script>
-
 </body>
 </html>

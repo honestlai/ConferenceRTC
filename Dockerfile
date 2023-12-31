@@ -1,31 +1,14 @@
-# Use a Debian-based Python image
-FROM python:3.8-slim-buster
+# Use an Alpine-based Python image
+FROM python:3.8-alpine
 
 # Set the working directory in the container
 WORKDIR /ConferenceRTC
 
-# Install dependencies required for aiortc and av
-RUN apt-get update && apt-get install -y \
-    net-tools \
-    nano \
-    figlet \
-    neofetch \
-    gcc \
-    libc-dev \
+# Install basic dependencies
+RUN apk add --no-cache \
+    build-base \
     libffi-dev \
-    openssl \
-    libssl-dev \
-    make \
-    pkg-config \
-    libopus-dev \
-    ffmpeg \
-    libavdevice-dev \
-    libavfilter-dev \
-    libavformat-dev \
-    libavcodec-dev \
-    libswscale-dev \
-    libopusfile-dev \
-    && rm -rf /var/lib/apt/lists/*
+    openssl-dev
 
 # Copy the current directory contents into the container at /ConferenceRTC
 COPY . /ConferenceRTC
