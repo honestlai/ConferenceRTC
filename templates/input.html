@@ -10,7 +10,7 @@
             text-align: center;
             padding-top: 50vh; /* Centers content vertically */
         }
-        #talkButton {
+        #startButton {
             font-size: 30px;
             padding: 15px 30px;
             background-color: white;
@@ -20,63 +20,51 @@
             cursor: pointer;
         }
     </style>
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 </head>
 <body>
-    <button id="talkButton" onclick="toggleTalk()">TALK</button>
+    <button id="startButton" onclick="handleSession()">Talk</button>
     
+    <script src="/static/js/webrtc.js"></script>
     <script>
-        var socket = io({transports: ['websocket']});
-        var pcConfig = {
-            iceServers: [{urls: 'stun:stun.l.google.com:19302'}]
-        };
-        var pc = new RTCPeerConnection(pcConfig);
-        var localStream = null;
-        var isTalking = false;
-
-        pc.onicecandidate = event => {
-            if (event.candidate) {
-                socket.emit('ice_candidate', event.candidate);
-            }
-        };
-
-        function toggleTalk() {
-            if (!isTalking) {
-                navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-                    .then(stream => {
-                        localStream = stream;
-                        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-                        pc.createOffer()
-                            .then(offer => {
-                                pc.setLocalDescription(offer);
-                                socket.emit('offer', offer);
-                            })
-                            .catch(error => console.error('Error creating offer:', error));
-                        document.getElementById('talkButton').style.color = 'red';
-                        isTalking = true;
-                    })
-                    .catch(error => console.error('Error getting user media:', error));
+        // Function to start the WebRTC session
+        let localStream; // Declare this at the top
+    
+        let isSessionActive = false;
+        
+        function handleSession() {
+            if (!isSessionActive) {
+                startSession();
+                document.getElementById('startButton').textContent = 'Stop';
+                document.getElementById('startButton').style.backgroundColor = 'red';
+                isSessionActive = true;
             } else {
-                stopTalking();
+                stopSession();
+                document.getElementById('startButton').textContent = 'Talk';
+                document.getElementById('startButton').style.backgroundColor = 'white';
+                isSessionActive = false;
             }
         }
-
-        function stopTalking() {
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-                localStream = null;
-            }
-            if (pc) {
-                pc.close();
-                pc = new RTCPeerConnection(pcConfig); // Reinitialize peer connection
-            }
-            document.getElementById('talkButton').style.color = ''; // Revert button color
-            isTalking = false;
+        
+        function startSession() {
+            const sessionId = "unique-session-id"; // Generate or retrieve a unique session ID as needed
+            setupWebRTC(sessionId);
+    
+            // Request access to the media devices
+            navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then(stream => {
+                localStream = stream; // Assign stream to localStream
+                addMediaStream(stream); // Add stream to the connection
+    
+                createAndSendOffer(sessionId); // Create and send the WebRTC offer
+            }).catch(error => {
+                console.error('Error accessing media devices:', error);
+            });
         }
-
-        socket.on('answer', answer => {
-            pc.setRemoteDescription(new RTCSessionDescription(answer));
-        });
+        
+        function stopSession() {
+            localStream.getTracks().forEach(track => track.stop());
+            // Optionally, send a message to the output page that the stream has ended
+        }
     </script>
+
 </body>
 </html>

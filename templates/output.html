@@ -8,80 +8,44 @@
             text-align: center;
             padding-top: 50vh; /* Centers content vertically */
         }
-        #listenButton {
-            font-size: 30px;
-            padding: 15px 30px;
-            background-color: blue;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-        }
-        #statusIndicator {
+        #status {
             font-size: 24px;
             margin-top: 20px;
+            color: white;
+            background-color: black;
         }
     </style>
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 </head>
 <body>
-    <button id="listenButton" onclick="toggleAudio()">Listening...</button><br/>
-    <label>
-        <input type="checkbox" id="audioSourceToggle" onchange="toggleAudioSource()">
-        Use Test Tone
-    </label><br/>
-    <span id="statusIndicator">Waiting for WebRTC Audio...</span>
-    <audio id="audioOutput" style="display:none;" autoplay></audio>
+    <span id="status">Waiting for WebRTC Session...</span>
+    <audio id="audioOutput" autoplay></audio>
 
+    <script src="/static/js/webrtc.js"></script>
     <script>
-        var socket = io({transports: ['websocket']});
-        var pcConfig = {
-            iceServers: [
-                {
-                    urls: 'stun:stun.l.google.com:19302'
-                }
-            ]
-        };
-        var pc = new RTCPeerConnection(pcConfig);
-        var isListening = true; // Initial state is listening
+        const sessionId = "unique-session-id"; // This should match the session ID used in input.html
 
-         pc.ontrack = function(event) {
-            var audioOutput = document.getElementById('audioOutput');
-            if (audioOutput.srcObject !== event.streams[0]) {
-                audioOutput.srcObject = event.streams[0];
-                document.getElementById('statusIndicator').textContent = 'Receiving WebRTC Audio...';
-            }
+        setupWebRTC(sessionId);
+
+        // Override the default ontrack handler to play received media
+        peerConnection.ontrack = event => {
+            document.getElementById('audioOutput').srcObject = event.streams[0];
+            document.getElementById('status').textContent = 'Receiving Audio...';
         };
 
-        function toggleAudio() {
-            var audioOutput = document.getElementById('audioOutput');
-            isListening = !isListening;
-            document.getElementById('listenButton').textContent = isListening ? 'Listening...' : 'Listen';
-            if (isListening) {
-                if (document.getElementById('audioSourceToggle').checked) {
-                    audioOutput.src = '{{ test_tone_base_url }}/stream';
-                    audioOutput.play();
-                }
-            } else {
-                audioOutput.pause();
-            }
-        }
+        // Listen for offers
+        socket.onmessage = event => {
+            let data = JSON.parse(event.data);
 
-        function toggleAudioSource() {
-            var checkbox = document.getElementById('audioSourceToggle');
-            var audioOutput = document.getElementById('audioOutput');
-            if (checkbox.checked && isListening) {
-                audioOutput.src = '{{ test_tone_base_url }}/stream';
-                audioOutput.play();
-                document.getElementById('statusIndicator').textContent = 'Playing Test Tone...';
-            } else {
-                audioOutput.pause();
-                document.getElementById('statusIndicator').textContent = 'Waiting for WebRTC Audio...';
+            if (data.offer) {
+                peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer))
+                    .then(() => peerConnection.createAnswer())
+                    .then(answer => peerConnection.setLocalDescription(answer))
+                    .then(() => {
+                        socket.send(JSON.stringify({'answer': peerConnection.localDescription, 'session_id': sessionId}));
+                    });
+            } else if (data.iceCandidate) {
+                peerConnection.addIceCandidate(new RTCIceCandidate(data.iceCandidate));
             }
-        }
-
-        window.onload = function() {
-            toggleAudioSource();
         };
     </script>
 </body>

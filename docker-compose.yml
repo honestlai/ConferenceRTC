@@ -10,7 +10,6 @@ services:
     environment:
       EXTERNAL_URL: #optional https://conference.yourdomain.com
       PASSWORD: #optional password
-      TTEST_TONE:  # Set to 1 to enable test tone, 0 to disable
     restart: unless-stopped
     ports:
       - "5000:5000"

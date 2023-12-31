@@ -3,4 +3,5 @@ Flask-SocketIO
 flask-cors
 eventlet
 python-socketio[client]
-aiortc # For WebRTC in Python
+aiortc  
+flask-sockets
