@@ -1,0 +1,44 @@
+/* style.css */
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    margin: 0;
+    background-color: #000; /* Black */
+}
+
+.button, .button-red, .button-gray {
+    padding: 15px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+    border-radius: 4px;
+    border: none;
+    color: white; /* White text for all button types */
+    width: 150px; /* Fixed width for buttons */
+}
+
+.button {
+    background-color: #4CAF50; /* Green */
+}
+
+.button-red {
+    background-color: #f44336; /* Red */
+    /* Ensuring text is white for red button */
+    color: white; 
+}
+
+.button-gray {
+    background-color: #e7e7e7; /* Gray */
+    color: black; /* Black text for gray button */
+}
+
+.hidden {
+    display: none;
+}

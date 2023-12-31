@@ -1,26 +1,20 @@
-# Use an Alpine-based Python image
-FROM python:3.8-alpine
+# Use an official Node.js runtime as a parent image with Alpine
+FROM node:16-alpine
 
 # Set the working directory in the container
-WORKDIR /ConferenceRTC
+WORKDIR /app
 
-# Install basic dependencies
-RUN apk add --no-cache \
-    build-base \
-    libffi-dev \
-    openssl-dev
+# Copy package.json and package-lock.json
+COPY package*.json ./
 
-# Copy the current directory contents into the container at /ConferenceRTC
-COPY . /ConferenceRTC
+# Install any needed packages
+RUN npm install
 
-# Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy the rest of your app's source code
+COPY . .
 
-# Make port 5000 available to the world outside this container
-EXPOSE 5000
+# Make port 8080 available to the outside world
+EXPOSE 8080
 
-# Define environment variable
-ENV NAME ConferenceRTC
-
-# Run app.py when the container launches
-CMD ["./entrypoint.sh"]
+# Run the app
+CMD ["node", "server.js"]
