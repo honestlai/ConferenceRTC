@@ -4,9 +4,8 @@ services:
   conferencertc:
     build: .
     container_name: ConferenceRTC
-    volumes:
-      - app:/usr/src/app
-      - /usr/src/app/node_modules
+#    volumes:
+#      - app:/usr/src/app
     environment:
       EXTERNAL_URL: #optional https://conference.yourdomain.com
       PASSWORD: #optional password
@@ -14,6 +13,6 @@ services:
     ports:
       - "8080:8080"
 
-volumes:
-  app:
+#volumes:
+#  app:
 
