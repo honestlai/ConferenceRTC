@@ -1,82 +1,123 @@
-// webrtc.js
+// Revised webrtc.js
+
 let localConnection;
-let localStream; // Variable to hold the local stream
-let localAudio = document.createElement('audio');
-let qualityCheckInterval; // Variable to manage the interval for monitoring connection quality
+let localStream;
 let remoteAudio = document.getElementById('remoteAudio');
-localAudio.muted = true; // Mute the local audio to prevent feedback
+let localClientId = Math.floor(Math.random() * 1000000);
+let qualityCheckInterval;
+let ws; // WebSocket connection
+let iceCandidateQueue = []; // Queue for storing ICE candidates
 
-// In startCall() function, after getting the local stream
-localStream.getAudioTracks().forEach(track => {
-    track.enabled = false; // Disable the audio track to prevent it from being played back
-});
+function connectWebSocket() {
+    ws = new WebSocket((window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host);
 
-const ws = new WebSocket((window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host);
+    ws.onopen = () => {
+        console.log('WebSocket Connected');
+        // Send any queued ICE candidates
+        iceCandidateQueue.forEach(candidate => {
+            ws.send(JSON.stringify({ 'iceCandidate': candidate, 'senderId': localClientId }));
+        });
+        iceCandidateQueue = []; // Clear the queue
+    };
+    ws.onerror = (error) => console.error('WebSocket Error:', error);
+    ws.onmessage = handleWebSocketMessage;
+}
 
-ws.onopen = () => console.log('WebSocket Connected');
-ws.onerror = (error) => console.error('WebSocket Error:', error);
-ws.onmessage = (event) => {
+function handleWebSocketMessage(event) {
     console.log('WebSocket Message:', event.data);
     const data = JSON.parse(event.data);
 
+    if (data.senderId === localClientId) return;
+
     if (data.answer) {
+        console.log('Received answer');
         localConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
     } else if (data.offer) {
+        console.log('Received offer');
         localConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
         localConnection.createAnswer().then(answer => {
             localConnection.setLocalDescription(answer);
-            ws.send(JSON.stringify({ 'answer': answer }));
+            ws.send(JSON.stringify({ 'answer': answer, 'senderId': localClientId }));
         });
     } else if (data.iceCandidate) {
+        console.log('Received ICE candidate');
         localConnection.addIceCandidate(new RTCIceCandidate(data.iceCandidate));
     }
-};
+}
 
 function startCall() {
-    console.log('Starting call');
+    connectWebSocket(); // Establish WebSocket connection
+
     localConnection = new RTCPeerConnection({
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
             { urls: 'stun:stun2.l.google.com:19302' }
-        ],
-        iceCandidatePoolSize: 10
+        ]
     });
 
     localConnection.onicecandidate = event => {
         if (event.candidate) {
-            ws.send(JSON.stringify({ 'iceCandidate': event.candidate }));
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ 'iceCandidate': event.candidate, 'senderId': localClientId }));
+            } else {
+                iceCandidateQueue.push(event.candidate); // Queue the candidate
+            }
         }
     };
 
     localConnection.ontrack = event => {
-        if (event.streams && event.streams[0] && event.track.kind === 'audio') {
-            remoteAudio.srcObject = event.streams[0]; // Ensure this is the remote stream
-            remoteAudio.play().catch(error => console.error('Error playing audio:', error));
+        if (event.streams && event.streams[0]) {
+            console.log('Received remote stream');
+            remoteAudio.srcObject = event.streams[0];
+            remoteAudio.play().then(() => {
+                console.log('Playback started successfully');
+            }).catch(error => {
+                console.error('Error playing audio:', error);
+            });
         }
     };
 
-    navigator.mediaDevices.getUserMedia({
-        audio: { 
-            echoCancellation: true,
-            latency: { ideal: 0.01 }
-        },
-        video: false
-    }).then(stream => {
+    navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+    .then(stream => {
         localStream = stream;
-        localAudio.srcObject = localStream; // Assign the local stream to the local audio element
         console.log('Local stream obtained');
         stream.getTracks().forEach(track => localConnection.addTrack(track, stream));
-        return localConnection.createOffer();
-    }).then(offer => {
-        return localConnection.setLocalDescription(offer);
-    }).then(() => {
-        ws.send(JSON.stringify({ 'offer': localConnection.localDescription }));
-    }).catch(error => console.error('Error accessing media devices:', error));
-
-    // Start monitoring connection quality
-    qualityCheckInterval = setInterval(monitorConnectionQuality, 5000);
+        localConnection.createOffer().then(offer => {
+            return localConnection.setLocalDescription(offer);
+        }).then(() => {
+            ws.onopen = () => {
+                console.log('WebSocket Open - Sending offer');
+                ws.send(JSON.stringify({ 'offer': localConnection.localDescription, 'senderId': localClientId }));
+            };
+            if (ws.readyState === WebSocket.OPEN) {
+                console.log('WebSocket Already Open - Sending offer');
+                ws.send(JSON.stringify({ 'offer': localConnection.localDescription, 'senderId': localClientId }));
+            }
+        }).catch(error => console.error('Error accessing media devices:', error));
+    });
 }
+
+function stopCall() {
+    console.log('Stopping call');
+    if (ws) {
+        ws.close(); // Close WebSocket connection
+        ws = null;
+    }
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+    }
+    if (localConnection) {
+        localConnection.close();
+        localConnection = null;
+        remoteAudio.srcObject = null;
+    }
+}
+
+// Additional functions (adjustBitrate, monitorConnectionQuality)...
+
+
 
 function adjustBitrate(newBitrate) {
     localConnection.getSenders().forEach(sender => {
@@ -109,11 +150,14 @@ function monitorConnectionQuality() {
     }).catch(e => console.error(e));
 }
 
+// Somewhere in your script, probably in startCall function
+qualityCheckInterval = setInterval(monitorConnectionQuality, 5000);
+
 function stopCall() {
     console.log('Stopping call');
-    if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-        localStream = null;
+    if (qualityCheckInterval) {
+        clearInterval(qualityCheckInterval); // Clear the interval
+        qualityCheckInterval = null; // Reset the variable
     }
     if (localConnection) {
         localConnection.close();

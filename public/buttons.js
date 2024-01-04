@@ -1,6 +1,7 @@
 // buttons.js
 const callButton = document.getElementById('callButton');
 const muteButton = document.getElementById('muteButton');
+let currentOutputDeviceId = '';
 
 function startAudioPlayback() {
     console.log('Attempting to start audio playback');
@@ -10,6 +11,7 @@ function startAudioPlayback() {
         console.log('No audio srcObject found');
     }
 }
+
 
 function toggleCall() {
     console.log('toggleCall invoked');
@@ -31,20 +33,27 @@ function toggleCall() {
 
 function toggleMute() {
     console.log('toggleMute invoked');
-    if (remoteAudio.muted) {
-        console.log('Unmuting microphone');
-        remoteAudio.muted = false;
-        muteButton.textContent = 'Mute Mic';
-        muteButton.classList.remove('button-red');
-        muteButton.classList.add('button-gray');
+    if (localStream && localStream.getAudioTracks().length > 0) {
+        const audioTrack = localStream.getAudioTracks()[0];
+        if (audioTrack.enabled) {
+            console.log('Muting microphone');
+            audioTrack.enabled = false;
+            muteButton.textContent = 'Mic Muted';
+            muteButton.classList.remove('button-gray');
+            muteButton.classList.add('button-red');
+        } else {
+            console.log('Unmuting microphone');
+            audioTrack.enabled = true;
+            muteButton.textContent = 'Mute Mic';
+            muteButton.classList.remove('button-red');
+            muteButton.classList.add('button-gray');
+        }
     } else {
-        console.log('Muting microphone');
-        remoteAudio.muted = true;
-        muteButton.textContent = 'Mic Muted';
-        muteButton.classList.remove('button-gray');
-        muteButton.classList.add('button-red');
+        console.log('No audio tracks found');
     }
 }
+
+
 
 callButton.addEventListener('click', toggleCall);
 muteButton.addEventListener('click', toggleMute);
